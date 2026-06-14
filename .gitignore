@@ -1,0 +1,17 @@
+# Streamlit secrets (NUNCA subir credenciales reales)
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# Sistema
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
