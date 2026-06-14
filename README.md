@@ -8,12 +8,14 @@ categorías inferiores del club. Lee en vivo las bases de datos de evaluaciones
 
 - Login con usuarios y contraseñas por categoría y para coordinadores.
 - Control de acceso: coordinadores ven todo, cada categoría ve solo sus datos.
-- **Resumen General**: tarjetas por categoría (promedio, mín, máx) + tabla matriz con escala de color.
+- **Resumen General**: referencia visible para **todos** (promedios de todas las categorías) con tarjetas + tabla matriz con escala de color.
 - **Análisis por Categoría** con pestañas:
   - **CMJ**: filtros en cascada, tarjetas, promedio por posición, detalle por test.
   - **Nórdico**: ídem con las métricas de fuerza/asimetría.
   - **Resumen Jugador**: datos personales, evolución, comparador, tabla resumen y radar.
 - Exportación a PDF (impresión sin cortes) en cada sección.
+
+> **Categorías:** son los años de nacimiento `2006` … `2012`. La **3ª** (Tercera) corresponde a los nacidos en **2005** y se muestra como *"3ª División (2005)"*. Si en tu planilla la columna **CAT** trae `2005`, `3ª` o `Tercera`, la app los unifica automáticamente con `3a` (ver `CAT_ALIASES` en `config.py`).
 
 ## Métricas
 
@@ -40,7 +42,7 @@ categorías inferiores del club. Lee en vivo las bases de datos de evaluaciones
 | Coord_PFs | Union2025.PFs |
 | Coord_Fza | Union2025.Fza |
 | Sec-Tecnica | Union2025.SecTec |
-| PF-3a | Tate3a.Total |
+| PF-3a | Tate3a.Total | (Tercera / 2005) |
 
 **Solo su categoría**
 

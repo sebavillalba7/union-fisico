@@ -54,10 +54,7 @@ if "auth" not in st.session_state:
 def pantalla_login():
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        if os.path.exists(RUTA_ESCUDO):
-            st.markdown("<div style='text-align:center'>", unsafe_allow_html=True)
-            st.image(RUTA_ESCUDO, width=170)
-            st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(styles.escudo_html(RUTA_ESCUDO, width=180), unsafe_allow_html=True)
         st.markdown(
             f"<h2 style='text-align:center;color:{config.AZUL};margin-bottom:0'>{config.NOMBRE_CLUB}</h2>"
             f"<p style='text-align:center;color:{config.ROJO};font-weight:700;margin-top:4px'>"
@@ -127,7 +124,11 @@ def filtros_cascada(df, key_prefix, cols_orden):
                     # sanear selección previa que ya no es válida
                     prev = [v for v in st.session_state.get(key, []) if v in opts]
                     st.session_state[key] = prev
-                    sel = st.multiselect(label, opts, key=key)
+                    if col == "cat":
+                        sel = st.multiselect(label, opts, key=key,
+                                             format_func=config.etiqueta_categoria)
+                    else:
+                        sel = st.multiselect(label, opts, key=key)
                 else:
                     sel = []
                     st.caption(f"({label} no disponible)")
@@ -170,23 +171,34 @@ def tabla_listado(df, metricas, key):
 # ----------------------------------------------------------------------------
 # SECCIÓN 1: RESUMEN GENERAL
 # ----------------------------------------------------------------------------
-def seccion_resumen(df_cmj, df_nordico, cats_sel):
+def seccion_resumen(df_cmj, df_nordico, cats_disponibles):
     st.markdown("## 📊 Resumen General")
+    st.caption("Referencia general del club: promedios de todas las categorías. "
+               "Visible para todo el cuerpo técnico.")
     styles.boton_imprimir()
 
-    # Año multiselect (afecta todo el resumen)
-    anios = sorted(set(
-        analysis.opciones_disponibles(df_cmj, "anio") +
-        analysis.opciones_disponibles(df_nordico, "anio")
-    ))
-    anios_sel = st.multiselect("Año (uno o varios)", anios, default=anios, key="res_anio")
+    # Filtros: año y (opcional) categorías a mostrar. Por defecto, todas.
+    c1, c2 = st.columns([1, 1.4])
+    with c1:
+        anios = sorted(set(
+            analysis.opciones_disponibles(df_cmj, "anio") +
+            analysis.opciones_disponibles(df_nordico, "anio")
+        ))
+        anios_sel = st.multiselect("Año (uno o varios)", anios, default=anios, key="res_anio")
+    with c2:
+        cats_sel = st.multiselect(
+            "Categorías a mostrar", cats_disponibles, default=cats_disponibles,
+            key="res_cats", format_func=config.etiqueta_categoria)
+    if not cats_sel:
+        cats_sel = cats_disponibles
 
     dcj = df_cmj[df_cmj["anio"].isin(anios_sel)] if anios_sel and "anio" in df_cmj.columns else df_cmj
     dn = df_nordico[df_nordico["anio"].isin(anios_sel)] if anios_sel and "anio" in df_nordico.columns else df_nordico
 
     # --- Tarjetas por categoría ---
     for cat in cats_sel:
-        st.markdown(f"<div class='cat-header'>Categoría {cat}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='cat-header'>Categoría {config.etiqueta_categoria(cat)}</div>",
+                    unsafe_allow_html=True)
         dcj_c = dcj[dcj["cat"] == cat] if "cat" in dcj.columns else pd.DataFrame()
         dn_c = dn[dn["cat"] == cat] if "cat" in dn.columns else pd.DataFrame()
 
@@ -210,7 +222,7 @@ def seccion_resumen(df_cmj, df_nordico, cats_sel):
             fila[m["label"]] = dcj_c[m["key"]].mean() if m["key"] in dcj_c.columns else np.nan
         for m in config.NORDICO_METRICS:
             fila[m["label"]] = dn_c[m["key"]].mean() if m["key"] in dn_c.columns else np.nan
-        filas[f"Cat {cat}"] = fila
+        filas[config.etiqueta_categoria(cat)] = fila
 
     matriz = pd.DataFrame(filas).T
     if not matriz.empty:
@@ -485,9 +497,9 @@ def app_principal():
 
     # ---- Sidebar ----
     with st.sidebar:
-        if os.path.exists(RUTA_ESCUDO):
-            st.image(RUTA_ESCUDO, width=110)
-        st.markdown(f"**{config.NOMBRE_CLUB}**")
+        st.markdown(styles.escudo_html(RUTA_ESCUDO, width=120), unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;font-weight:700;color:{config.AZUL}'>"
+                    f"{config.NOMBRE_CLUB}</div>", unsafe_allow_html=True)
         st.markdown("---")
 
         seccion = st.radio("Navegación",
@@ -497,10 +509,13 @@ def app_principal():
 
         cats_perm = auth.categorias_permitidas(user, config.CATEGORIAS)
         if user.get("acceso_total"):
-            cats_sel = st.multiselect("Categorías", cats_perm, default=cats_perm, key="cats_sel")
+            cats_sel = st.multiselect(
+                "Categorías", cats_perm, default=cats_perm, key="cats_sel",
+                format_func=config.etiqueta_categoria)
         else:
             cats_sel = cats_perm
-            st.info(f"Categoría asignada: **{cats_perm[0] if cats_perm else '—'}**")
+            etiqueta = config.etiqueta_categoria(cats_perm[0]) if cats_perm else "—"
+            st.info(f"Categoría asignada: **{etiqueta}**")
         st.markdown("---")
         if st.button("Cerrar sesión", use_container_width=True):
             st.session_state.auth = None
@@ -516,17 +531,16 @@ def app_principal():
         st.warning("No se cargaron datos. Revisá la conexión y las URLs.")
         return
 
-    if not cats_sel:
-        st.warning("Seleccioná al menos una categoría en la barra lateral.")
-        return
-
-    # Filtrar por categorías permitidas/seleccionadas para la vista
-    dcj = df_cmj_full[df_cmj_full["cat"].isin(cats_sel)] if "cat" in df_cmj_full.columns else df_cmj_full
-    dn = df_nordico_full[df_nordico_full["cat"].isin(cats_sel)] if "cat" in df_nordico_full.columns else df_nordico_full
-
     if seccion.startswith("📊"):
-        seccion_resumen(dcj, dn, cats_sel)
+        # Resumen General: referencia para TODOS, con todas las categorías.
+        seccion_resumen(df_cmj_full, df_nordico_full, config.CATEGORIAS)
     else:
+        # Análisis por Categoría: datos detallados, restringidos por permiso.
+        dcj = df_cmj_full[df_cmj_full["cat"].isin(cats_sel)] if "cat" in df_cmj_full.columns else df_cmj_full
+        dn = df_nordico_full[df_nordico_full["cat"].isin(cats_sel)] if "cat" in df_nordico_full.columns else df_nordico_full
+        if not cats_sel:
+            st.warning("Seleccioná al menos una categoría en la barra lateral.")
+            return
         st.markdown("## 🔬 Análisis por Categoría")
         t1, t2, t3 = st.tabs(["🦵 CMJ (Saltos)", "💪 Nórdico", "👤 Resumen Jugador"])
         with t1:

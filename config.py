@@ -125,6 +125,37 @@ CATEGORIAS = ["2006", "2007", "2008", "2009", "2010", "2011", "2012", "3a"]
 # Categoría que representa a "Tercera" (para comparaciones del radar)
 CATEGORIA_3A = "3a"
 
+# La Tercera ("3a") agrupa a los jugadores nacidos en 2005.
+# Año de nacimiento asociado a cada categoría (para mostrarlo y aclararlo).
+ANIO_NAC_CATEGORIA = {
+    "2006": "2006", "2007": "2007", "2008": "2008", "2009": "2009",
+    "2010": "2010", "2011": "2011", "2012": "2012", "3a": "2005",
+}
+
+# Alias: si en la planilla la columna CAT trae estos valores, se unifican
+# a la categoría canónica de la izquierda. Así "3a" y "2005" (y variantes)
+# se tratan como la misma categoría: la Tercera (2005).
+CAT_ALIASES = {
+    "2005": "3a", "3ª": "3a", "3RA": "3a", "3RA.": "3a",
+    "TERCERA": "3a", "3RA DIVISION": "3a", "3RA DIVISIÓN": "3a", "3": "3a",
+}
+
+
+def etiqueta_categoria(cat):
+    """Texto a mostrar para una categoría. La 3ª se muestra con su año (2005)."""
+    cat = str(cat).strip()
+    if cat == CATEGORIA_3A:
+        return "3ª División (2005)"
+    return cat
+
+
+def normalizar_categoria(valor):
+    """Convierte un valor crudo de la columna CAT a la categoría canónica."""
+    if valor is None:
+        return valor
+    v = str(valor).strip()
+    return CAT_ALIASES.get(v, CAT_ALIASES.get(v.upper(), v))
+
 # ----------------------------------------------------------------------------
 # TEXTOS
 # ----------------------------------------------------------------------------

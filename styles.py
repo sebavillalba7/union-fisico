@@ -17,15 +17,29 @@ def inyectar_css():
     <style>
     /* ---------- Base ---------- */
     .stApp {{ background-color: {config.BLANCO}; }}
-    .block-container {{ padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1300px; }}
+    .block-container {{ padding-top: 2.6rem; padding-bottom: 2rem; max-width: 1300px; }}
     h1, h2, h3, h4 {{ color: {config.AZUL}; }}
 
-    /* Título principal con franja roja */
+    /* Franja superior de Streamlit: gradiente azul -> rojo (antes blanca) */
+    [data-testid="stDecoration"] {{
+        background: linear-gradient(90deg, {config.AZUL} 0%, {config.ROJO} 100%) !important;
+        height: 5px !important;
+    }}
+    /* Header transparente para que no tape el título */
+    header[data-testid="stHeader"] {{ background: rgba(0,0,0,0) !important; }}
+
+    /* Título principal con franja roja a la izquierda (no se corta arriba) */
     .titulo-principal {{
         color: {config.AZUL}; font-weight: 800; font-size: 2rem;
-        border-left: 8px solid {config.ROJO}; padding-left: 14px; margin-bottom: .3rem;
+        border-left: 8px solid {config.ROJO}; padding-left: 14px;
+        margin-top: .6rem; margin-bottom: .3rem; line-height: 1.25;
+        scroll-margin-top: 70px;
     }}
     .subtitulo {{ color: {config.GRIS}; font-size: .95rem; margin-bottom: 1rem; }}
+
+    /* Escudo centrado (login y sidebar) */
+    .escudo-centro {{ text-align: center; margin: 0 auto .4rem auto; }}
+    .escudo-centro img {{ display: block; margin: 0 auto; }}
 
     /* ---------- Tarjetas de métricas ---------- */
     .metric-card {{
@@ -81,6 +95,26 @@ def inyectar_css():
     }}
     </style>
     """, unsafe_allow_html=True)
+
+
+import base64 as _base64
+import os as _os
+
+_ESCUDO_CACHE = {}
+
+
+def escudo_html(ruta, width=160):
+    """Devuelve HTML de un <img> centrado con el escudo incrustado (base64).
+    Centra de forma confiable (a diferencia de st.image)."""
+    if not ruta or not _os.path.exists(ruta):
+        return ""
+    if ruta not in _ESCUDO_CACHE:
+        with open(ruta, "rb") as f:
+            _ESCUDO_CACHE[ruta] = _base64.b64encode(f.read()).decode("ascii")
+    b64 = _ESCUDO_CACHE[ruta]
+    return (f"<div class='escudo-centro'>"
+            f"<img src='data:image/png;base64,{b64}' width='{width}' "
+            f"alt='Escudo Club Atlético Unión'/></div>")
 
 
 def boton_imprimir(etiqueta="🖨️ Exportar a PDF / Imprimir"):

@@ -75,7 +75,7 @@ def _normalizar(df, metricas):
     if "anio" in df.columns:
         df["anio"] = df["anio"].astype(str).str.strip().str.replace(r"\.0$", "", regex=True)
     if "cat" in df.columns:
-        df["cat"] = df["cat"].astype(str).str.strip()
+        df["cat"] = df["cat"].astype(str).str.strip().map(config.normalizar_categoria)
     if "pos" in df.columns:
         df["pos"] = df["pos"].astype(str).str.strip()
     if "jugador" in df.columns:
