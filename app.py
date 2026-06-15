@@ -479,10 +479,37 @@ def radar_jugador(jugador, dcj, dn, df_cmj_full, df_nordico_full, key_prefix):
     perfiles = {jugador: perfil_jug, opcion: ref}
     escalados = analysis.escalar_para_radar(perfiles, df_cmj_full, df_nordico_full, metricas)
     st.plotly_chart(charts.radar(escalados, metricas,
-                    f"{jugador} vs {opcion}"), use_container_width=True)
-    st.caption("Valores escalados 0–100 según el rango de todo el plantel. "
-               "En todas las métricas, **más área = mejor** (en *Dif %* la escala está invertida "
-               "porque menos asimetría es mejor).")
+                    f"{jugador} vs {opcion}", reales=perfiles),
+                    use_container_width=True)
+    st.caption("El gráfico está escalado 0–100 según el rango de todo el plantel "
+               "(más área = mejor; en *Dif %* la escala está invertida porque menos "
+               "asimetría es mejor). Los **valores reales** están en la tabla de abajo.")
+
+    # --- Tabla de valores REALES (lo que el radar no muestra) ---
+    def _fmt(v, dec):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        return f"{v:,.{dec}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    filas = []
+    for m in metricas:
+        a = perfil_jug.get(m["key"])
+        b = ref.get(m["key"])
+        if a is not None and b is not None and not pd.isna(a) and not pd.isna(b) and a != 0:
+            diff = (a - b) / abs(b) * 100
+            diff_txt = f"{diff:+.1f}%".replace(".", ",")
+        else:
+            diff_txt = "—"
+        filas.append({
+            "Métrica": m["label"],
+            jugador: _fmt(a, m["decimals"]),
+            opcion: _fmt(b, m["decimals"]),
+            "Dif. (jugador vs ref.)": diff_txt,
+        })
+    st.markdown("**Valores reales**")
+    st.dataframe(pd.DataFrame(filas), use_container_width=True, hide_index=True)
+    st.caption("Diferencia = (jugador − referencia) / referencia × 100. "
+               "En *Dif (%)* del nórdico, recordá que un valor más bajo es mejor.")
 
 
 # ----------------------------------------------------------------------------
