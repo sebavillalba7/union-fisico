@@ -69,20 +69,41 @@ def linea_simple(df_fechas, key, label, color, titulo=""):
     return _layout_base(fig, titulo)
 
 
-def radar(perfiles_escalados, metricas, titulo="Perfil Radar"):
-    """perfiles_escalados: dict {nombre: {key: valor_0_100}}."""
+def radar(perfiles_escalados, metricas, titulo="Perfil Radar", reales=None):
+    """perfiles_escalados: dict {nombre: {key: valor_0_100}}.
+    reales (opcional): dict {nombre: {key: valor_real}} para mostrar en el hover."""
     fig = go.Figure()
     categorias = [m["label"] for m in metricas]
     keys = [m["key"] for m in metricas]
+    decs = {m["key"]: m.get("decimals", 1) for m in metricas}
+
+    def _fmt(v, dec):
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            return "—"
+        return f"{v:,.{dec}f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
     for i, (nombre, vals) in enumerate(perfiles_escalados.items()):
         r = [vals.get(k, 0) for k in keys]
         r_closed = r + [r[0]]
         theta_closed = categorias + [categorias[0]]
         color = PALETA[i % len(PALETA)]
-        fig.add_trace(go.Scatterpolar(
-            r=r_closed, theta=theta_closed, name=nombre, fill="toself",
-            line=dict(color=color, width=2), opacity=0.6,
-        ))
+
+        # customdata = valor real por métrica (si está disponible)
+        if reales and nombre in reales:
+            cd = [_fmt(reales[nombre].get(k), decs[k]) for k in keys]
+            cd_closed = cd + [cd[0]]
+            fig.add_trace(go.Scatterpolar(
+                r=r_closed, theta=theta_closed, name=nombre, fill="toself",
+                line=dict(color=color, width=2), opacity=0.6,
+                customdata=cd_closed,
+                hovertemplate="<b>%{theta}</b><br>Valor real: %{customdata}"
+                              "<br>Escala 0–100: %{r:.0f}<extra>" + str(nombre) + "</extra>",
+            ))
+        else:
+            fig.add_trace(go.Scatterpolar(
+                r=r_closed, theta=theta_closed, name=nombre, fill="toself",
+                line=dict(color=color, width=2), opacity=0.6,
+            ))
     fig.update_layout(
         title=titulo,
         polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
