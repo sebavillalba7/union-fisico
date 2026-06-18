@@ -1,5 +1,12 @@
-streamlit>=1.40.0
-pandas>=2.0.0
-numpy>=1.24.0
-plotly>=5.20.0
-requests>=2.31.0
+streamlit>=1.40
+pandas>=2.0
+numpy>=1.24
+plotly>=5.20
+requests>=2.31
+
+# Solo para el MÉTODO B (cuenta de servicio de Google Cloud).
+# El método recomendado (Apps Script) NO los necesita. Si usás Apps Script,
+# podés dejar estas dos líneas; no molestan.
+gspread>=6.0
+google-auth>=2.30
+
