@@ -31,30 +31,34 @@ categorías inferiores del club. Lee en vivo las bases de datos de evaluaciones
 
 ## Usuarios y contraseñas
 
-> ⚠️ Cambialas antes de usarlo en serio (ver `auth.py` o `.streamlit/secrets.toml`).
+> 🔒 **Las contraseñas YA NO están en el código.** Se cargan en **Streamlit Secrets**
+> (privado, no se sube a GitHub). Copiá el contenido de `.streamlit/secrets.toml.example`
+> en *Manage app → Settings → Secrets* y cambiá las claves por las reales.
+>
+> Si todavía no cargaste Secrets, solo funciona el usuario **`admin`** con la clave
+> temporal **`CambiarEsta.2025`** para que puedas entrar y configurarlo.
 
-**Acceso total**
+**Usuarios incluidos (sus claves se definen en Secrets):**
 
-| Usuario | Contraseña |
-|---------|-----------|
-| admin | Admin.Union2025 |
-| Coordinador | Union2025.Coord |
-| Coord_PFs | Union2025.PFs |
-| Coord_Fza | Union2025.Fza |
-| Sec-Tecnica | Union2025.SecTec |
-| PF-3a | Tate3a.Total | (Tercera / 2005) |
+| Usuario | Acceso | Categoría |
+|---------|--------|-----------|
+| admin, Coordinador, Coord_PFs, Coord_Fza, Sec-Tecnica | Total | — |
+| PF-3a | Total | Tercera (2005) |
+| PF-2012 … PF-2006 | Solo su categoría | 2012 … 2006 |
 
-**Solo su categoría**
+Cada usuario en Secrets admite: `password` (texto), opcional `password_hash` (más seguro)
+y `email`. Para generar un hash: `python -c "import auth; print(auth.generar_hash('TuClave'))"`.
 
-| Usuario | Contraseña | Ve categoría |
-|---------|-----------|--------------|
-| PF-2012 | Tate2012.PF | 2012 |
-| PF-2011 | Tate2011.PF | 2011 |
-| PF-2010 | Tate2010.PF | 2010 |
-| PF-2009 | Tate2009.PF | 2009 |
-| PF-2008 | Tate2008.PF | 2008 |
-| PF-2007 | Tate2007.PF | 2007 |
-| PF-2006 | Tate2006.PF | 2006 |
+### Cambio de contraseña automático (opcional)
+
+Cada usuario puede **cambiar su propia contraseña** y recuperarla con su **usuario + email**
+(sin enviar correos). Se guarda cifrado en una **hoja de Google**. Hay dos formas de
+conectarla y la app detecta sola cuál usaste:
+
+- **Apps Script (recomendado, SIN tarjeta ni Google Cloud).**
+- Cuenta de servicio de Google Cloud (alternativa).
+
+Ver **`GUIA_CONTRASENAS.md`** (incluye el script `apps_script/Codigo.gs`).
 
 ## Ejecutar en tu computadora
 
