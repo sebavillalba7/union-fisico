@@ -77,6 +77,38 @@ def pantalla_login():
             unsafe_allow_html=True,
         )
 
+        # --- Recuperación de contraseña (sin enviar correos) ---
+        if auth.almacenamiento_escribible():
+            with st.expander("¿Olvidaste tu contraseña?"):
+                st.caption("Ingresá tu usuario y el email que tenés registrado. "
+                           "Si coinciden, podés definir una nueva contraseña.")
+                r_user = st.text_input("Usuario", key="rec_user")
+                r_email = st.text_input("Email registrado", key="rec_email")
+                if not st.session_state.get("rec_ok"):
+                    if st.button("Verificar", key="rec_verif", use_container_width=True):
+                        if auth.verificar_email(r_user.strip(), r_email):
+                            st.session_state.rec_ok = r_user.strip()
+                            st.rerun()
+                        else:
+                            st.error("El usuario y el email no coinciden con nuestros registros.")
+                else:
+                    st.success(f"Identidad verificada para **{st.session_state.rec_ok}**.")
+                    n1 = st.text_input("Nueva contraseña", type="password", key="rec_n1")
+                    n2 = st.text_input("Repetir nueva contraseña", type="password", key="rec_n2")
+                    if st.button("Guardar nueva contraseña", key="rec_save", use_container_width=True):
+                        if n1 != n2:
+                            st.error("Las contraseñas no coinciden.")
+                        else:
+                            ok, msg = auth.cambiar_password(st.session_state.rec_ok, n1)
+                            if ok:
+                                st.success(msg + " Ya podés ingresar con tu nueva clave.")
+                                st.session_state.rec_ok = None
+                            else:
+                                st.error(msg)
+        else:
+            with st.expander("¿Olvidaste tu contraseña?"):
+                st.caption("Escribile al coordinador para que te la restablezca.")
+
 
 # ----------------------------------------------------------------------------
 # HELPERS DE UI
@@ -544,6 +576,23 @@ def app_principal():
             etiqueta = config.etiqueta_categoria(cats_perm[0]) if cats_perm else "—"
             st.info(f"Categoría asignada: **{etiqueta}**")
         st.markdown("---")
+
+        # --- Cambiar mi contraseña (si la hoja de Google está activa) ---
+        if auth.almacenamiento_escribible():
+            with st.expander("🔑 Cambiar mi contraseña"):
+                actual = st.text_input("Contraseña actual", type="password", key="cp_act")
+                nueva1 = st.text_input("Nueva contraseña", type="password", key="cp_n1")
+                nueva2 = st.text_input("Repetir nueva", type="password", key="cp_n2")
+                if st.button("Guardar", key="cp_save", use_container_width=True):
+                    u = st.session_state.auth["usuario"]
+                    if auth.validar_login(u, actual) is None:
+                        st.error("La contraseña actual es incorrecta.")
+                    elif nueva1 != nueva2:
+                        st.error("Las contraseñas nuevas no coinciden.")
+                    else:
+                        ok, msg = auth.cambiar_password(u, nueva1)
+                        st.success(msg) if ok else st.error(msg)
+
         if st.button("Cerrar sesión", use_container_width=True):
             st.session_state.auth = None
             st.rerun()
