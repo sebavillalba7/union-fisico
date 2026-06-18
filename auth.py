@@ -31,6 +31,8 @@ import os
 
 import streamlit as st
 
+import usuarios_store
+
 # Estructura de usuarios SIN contraseñas (esto sí puede estar en GitHub).
 # La contraseña y el email de cada uno se cargan desde Secrets.
 USUARIOS_ESTRUCTURA = {
@@ -78,9 +80,31 @@ def get_usuarios():
     """Devuelve {usuario: {password/hash, email, acceso_total, categoria, rol}}.
 
     Prioridad:
-      1) Streamlit Secrets  [credentials.*]   (recomendado)
-      2) Respaldo mínimo: solo 'admin' con clave temporal.
+      1) Google Sheets (usuarios_store)  -> permite cambiar contraseñas
+      2) Streamlit Secrets  [credentials.*]
+      3) Respaldo mínimo: solo 'admin' con clave temporal.
     """
+    # 1) Hoja de Google (si está configurada y disponible)
+    try:
+        if usuarios_store.disponible():
+            desde_hoja = usuarios_store.leer_usuarios()
+            if desde_hoja:
+                usuarios = {}
+                for user, data in desde_hoja.items():
+                    base = USUARIOS_ESTRUCTURA.get(user, {})
+                    usuarios[user] = {
+                        "password": data.get("password", ""),
+                        "password_hash": data.get("password_hash", ""),
+                        "email": data.get("email", ""),
+                        "acceso_total": bool(data.get("acceso_total", base.get("acceso_total", False))),
+                        "categoria": data.get("categoria", base.get("categoria")) or None,
+                        "rol": data.get("rol") or base.get("rol", user),
+                    }
+                return usuarios
+    except Exception:
+        pass
+
+    # 2) Streamlit Secrets
     try:
         if "credentials" in st.secrets:
             usuarios = {}
@@ -99,13 +123,50 @@ def get_usuarios():
     except Exception:
         pass
 
-    # Respaldo: solo admin, para poder entrar y configurar Secrets.
+    # 3) Respaldo: solo admin, para poder entrar y configurar.
     return {
         "admin": {
             "password": _ADMIN_TEMP, "password_hash": "", "email": "",
             "acceso_total": True, "categoria": None, "rol": "Administrador (temporal)",
         }
     }
+
+
+def almacenamiento_escribible() -> bool:
+    """True si se pueden guardar cambios de contraseña (hoja de Google activa)."""
+    try:
+        return usuarios_store.disponible() and usuarios_store.leer_usuarios() is not None
+    except Exception:
+        return False
+
+
+def email_de(usuario: str) -> str:
+    """Email registrado de un usuario (o '')."""
+    u = get_usuarios().get(usuario)
+    return (u or {}).get("email", "") or ""
+
+
+def verificar_email(usuario: str, email: str) -> bool:
+    """True si el email coincide con el registrado (para recuperar clave)."""
+    reg = email_de(usuario).strip().lower()
+    return bool(reg) and reg == str(email).strip().lower()
+
+
+def cambiar_password(usuario: str, nueva_password: str):
+    """Guarda una nueva contraseña (hasheada) en la hoja de Google.
+    Devuelve (ok: bool, mensaje: str)."""
+    if not nueva_password or len(nueva_password) < 6:
+        return False, "La nueva contraseña debe tener al menos 6 caracteres."
+    if not almacenamiento_escribible():
+        return False, ("El cambio de contraseña requiere la hoja de Google configurada. "
+                       "Por ahora las claves se cambian desde Streamlit Secrets.")
+    try:
+        ok = usuarios_store.set_password_hash(usuario, generar_hash(nueva_password))
+        if ok:
+            return True, "Contraseña actualizada correctamente."
+        return False, "No se encontró el usuario en la hoja."
+    except Exception:
+        return False, "No se pudo guardar el cambio. Intentá de nuevo."
 
 
 def validar_login(usuario: str, password: str):
