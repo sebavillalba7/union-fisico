@@ -116,3 +116,64 @@ def cargar_datos():
     except Exception as e:
         error = (error + " | " if error else "") + f"Error cargando Nórdico: {e}"
     return df_cmj, df_nordico, error
+
+
+def _anio_nacimiento(df):
+    """Serie con el año de nacimiento (de FEC NAC; si no, de la columna AÑO)."""
+    anio = pd.Series([pd.NA] * len(df), index=df.index, dtype="object")
+    if "fec_nac" in df.columns:
+        dt = pd.to_datetime(df["fec_nac"], errors="coerce", dayfirst=True)
+        anio = dt.dt.year
+    # Completar faltantes con la columna 'anio' si parece un año de nacimiento
+    if "anio" in df.columns:
+        falt = anio.isna() if hasattr(anio, "isna") else pd.Series([True] * len(df))
+        cand = pd.to_numeric(df["anio"], errors="coerce")
+        cand = cand.where((cand >= 1990) & (cand <= 2015))
+        anio = anio.where(~falt, cand)
+    return anio.astype("Int64").astype(str).replace("<NA>", "")
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def cargar_cmj_full():
+    """Carga la planilla COMPLETA de CMJ (con métricas a 1 pie y asimetrías).
+    Devuelve (df, error). Agrega columnas derivadas: anio_nac, altura_l/r/asym,
+    pie_dom_cmj."""
+    try:
+        raw = cargar_csv(config.URL_CMJ_FULL)
+    except Exception as e:
+        return pd.DataFrame(), f"Error cargando CMJ completo: {e}"
+
+    df = _normalizar(raw, config.CMJ_METRICS)
+    raw2 = raw.copy()
+    raw2.columns = [str(c).strip() for c in raw2.columns]
+
+    # Métricas a 1 pie
+    for m in config.CMJ_UNIPODAL:
+        col = _find_column(raw2.columns, m["col"])
+        if col is not None:
+            df[m["key"]] = _to_number(raw2[col]).values
+
+    # Columna LADO (pie con mayor registro), si existe
+    lado_col = _find_column(raw2.columns, config.CMJ_UNIPODAL_LADO_COL)
+    if lado_col is not None:
+        df["altura_asym_lado"] = raw2[lado_col].astype(str).str.strip().values
+
+    # Año de nacimiento
+    df["anio_nac"] = _anio_nacimiento(df).values
+
+    # Pie dominante CMJ: el de mayor altura a 1 pie (más robusto que la col LADO)
+    df["pie_dom_cmj"] = _pie_dominante(df.get("altura_l"), df.get("altura_r"))
+    return df, None
+
+
+def _pie_dominante(serie_izq, serie_der):
+    """DERECHO / IZQUIERDO / SIN DATOS según cuál pierna tiene mayor valor."""
+    if serie_izq is None or serie_der is None:
+        return pd.Series([], dtype="object")
+    izq = pd.to_numeric(serie_izq, errors="coerce")
+    der = pd.to_numeric(serie_der, errors="coerce")
+    out = np.where(der > izq, "DERECHO",
+                   np.where(izq > der, "IZQUIERDO", "SIN DATOS"))
+    out = pd.Series(out, index=izq.index)
+    out[izq.isna() | der.isna()] = "SIN DATOS"
+    return out
