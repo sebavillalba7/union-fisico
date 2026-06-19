@@ -13,6 +13,16 @@ categorías inferiores del club. Lee en vivo las bases de datos de evaluaciones
   - **CMJ**: filtros en cascada, tarjetas, promedio por posición, detalle por test.
   - **Nórdico**: ídem con las métricas de fuerza/asimetría.
   - **Resumen Jugador**: datos personales, evolución, comparador, tabla resumen y radar.
+- **Análisis Estadísticos** (recreación del informe Looker, con datos vivos):
+  - Participación (testeados por año/categoría, asistencia por testeo).
+  - CMJ: boxplots Min/Prom/Med/Max de Altura, Ecc PP y RSI por año y categoría.
+  - Por posición (burbujas por categoría).
+  - CMJ a 1 pie: Izq/Der, asimetrías y pie dominante.
+  - Nórdico a 1 pie: ídem con fuerza máxima.
+  - Comparador individual por test (asimetrías de un jugador).
+  > Lee la planilla completa de ForceDecks (`URL_CMJ_FULL` en `config.py`, gid 1351515444),
+  > que incluye las columnas a 1 pie. Las vistas agregadas son referencia para todos; el
+  > comparador individual respeta los permisos.
 - Exportación a PDF (impresión sin cortes) en cada sección.
 
 > **Categorías:** son los años de nacimiento `2006` … `2012`. La **3ª** (Tercera) corresponde a los nacidos en **2005** y se muestra como *"3ª División (2005)"*. Si en tu planilla la columna **CAT** trae `2005`, `3ª` o `Tercera`, la app los unifica automáticamente con `3a` (ver `CAT_ALIASES` en `config.py`).
