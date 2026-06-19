@@ -24,7 +24,9 @@ import config
 import auth
 import data_loader
 import analysis
+import analysis_stats
 import charts
+import charts_stats
 import styles
 
 # ----------------------------------------------------------------------------
@@ -545,6 +547,232 @@ def radar_jugador(jugador, dcj, dn, df_cmj_full, df_nordico_full, key_prefix):
 
 
 # ----------------------------------------------------------------------------
+# SECCIÓN 3: ANÁLISIS ESTADÍSTICOS (recreación del informe Looker)
+# ----------------------------------------------------------------------------
+def _relabel(obj, grupo_col):
+    """Renombra el índice interno a código de división (3A..10A) si es categoría."""
+    if grupo_col != "cat":
+        return obj
+    mapa = {c: config.division_categoria(c) for c in list(getattr(obj, "index", obj))}
+    if hasattr(obj, "rename"):
+        return obj.rename(index=mapa)
+    return [mapa.get(x, x) for x in obj]
+
+
+def _tabla_stats(df_stats, grupo_col, decimales=2):
+    """Muestra una tabla de estadísticos con los grupos como columnas (estilo informe)."""
+    if df_stats is None or df_stats.empty:
+        st.info("Sin datos para mostrar.")
+        return
+    t = _relabel(df_stats, grupo_col).copy()
+    if "N" in t.columns:
+        t = t.drop(columns=["N"])
+    t = t.round(decimales).T  # estadísticos en filas, grupos en columnas
+    t.index.name = ""
+    st.dataframe(t, use_container_width=True)
+
+
+def _selector_grupo(key):
+    """Radio Año de nacimiento / Categoría. Devuelve (grupo_col, etiqueta_eje)."""
+    op = st.radio("Agrupar por", ["Año de nacimiento", "Categoría (división)"],
+                  horizontal=True, key=key)
+    return ("anio_nac", "Año de nacimiento") if op.startswith("Año") else ("cat", "Categoría")
+
+
+def seccion_estadisticos(df_cmj, df_nordico, cats_perm, acceso_total):
+    st.markdown("## 📈 Análisis Estadísticos")
+    st.caption("Recreación interactiva del informe del club. Las vistas agregadas son "
+               "referencia general; el comparador individual respeta los permisos.")
+    styles.boton_imprimir()
+
+    # Año de nacimiento para el nórdico (si tiene fecha/columna)
+    dn = df_nordico.copy()
+    if "anio_nac" not in dn.columns:
+        try:
+            dn["anio_nac"] = data_loader._anio_nacimiento(dn).values
+        except Exception:
+            pass
+
+    t1, t2, t3, t4, t5, t6 = st.tabs([
+        "👥 Participación", "🦵 CMJ (Salto)", "📍 Por posición",
+        "🦶 CMJ a 1 pie", "💪 Nórdico a 1 pie", "🔬 Comparador 1 pie"])
+
+    # ---------- TAB 1: Participación ----------
+    with t1:
+        st.markdown("#### Jugadores testeados y asistencia")
+        grupo, eje = _selector_grupo("est_part_g")
+        conteo = analysis_stats.conteo_jugadores(df_cmj, grupo)
+        if not conteo.empty:
+            serie = _relabel(conteo.set_index(grupo)["cantidad"], grupo)
+            st.plotly_chart(charts_stats.barras_conteo(
+                serie, titulo=f"Cantidad de jugadores testeados por {eje.lower()}",
+                xlabel=eje), use_container_width=True)
+        asist = analysis_stats.asistencia_por_testeo(df_cmj, grupo)
+        if not asist.empty:
+            st.plotly_chart(charts_stats.barras_agrupadas(
+                _relabel(asist, grupo),
+                titulo="Jugadores que asistieron a cada testeo", xlabel=eje),
+                use_container_width=True)
+
+    # ---------- TAB 2: CMJ ----------
+    with t2:
+        st.markdown("#### Distribución de las métricas del salto CMJ")
+        c1, c2 = st.columns(2)
+        with c1:
+            met = st.selectbox("Métrica", config.CMJ_METRICS,
+                               format_func=lambda m: m["label"], key="est_cmj_met")
+        with c2:
+            grupo, eje = _selector_grupo("est_cmj_g")
+        series = analysis_stats.series_por_grupo(df_cmj, grupo, met["key"])
+        if series:
+            series = {config.division_categoria(k) if grupo == "cat" else k: v
+                      for k, v in series.items()}
+            st.plotly_chart(charts_stats.boxplot(
+                series, titulo=f"{met['label']} por {eje.lower()}",
+                ylabel=met["label"], xlabel=eje, unidad=met["label"]),
+                use_container_width=True)
+        _tabla_stats(analysis_stats.stats_por_grupo(df_cmj, grupo, met["key"]),
+                     grupo, decimales=met["decimals"])
+
+    # ---------- TAB 3: Por posición ----------
+    with t3:
+        st.markdown("#### Jump Height del CMJ por posición")
+        st.caption("Cada burbuja es un jugador; el tamaño crece según la categoría "
+                   "(más grande = más cercano a 2005). El punto azul es el promedio.")
+        datos = analysis_stats.datos_posicion(df_cmj, "altura")
+        if not datos.empty:
+            st.plotly_chart(charts_stats.burbujas_posicion(
+                datos, "altura", titulo="Distribución por posición",
+                ylabel="Altura (cm)"), use_container_width=True)
+            tab_pos = analysis_stats.stats_por_grupo(df_cmj.assign(
+                pos=df_cmj["pos"].astype(str)), "pos", "altura")
+            _tabla_stats(tab_pos, "pos", decimales=1)
+        else:
+            st.info("No hay datos de posición disponibles.")
+
+    # ---------- TAB 4: CMJ a 1 pie ----------
+    with t4:
+        if "altura_l" not in df_cmj.columns or "altura_r" not in df_cmj.columns:
+            st.info("La planilla no tiene las columnas de salto a 1 pie (L/R).")
+        else:
+            grupo, eje = _selector_grupo("est_uni_g")
+            prom = analysis_stats.promedios_unipodal(df_cmj, grupo, "altura_l", "altura_r")
+            if not prom.empty:
+                st.plotly_chart(charts_stats.barras_izq_der(
+                    _relabel(prom, grupo),
+                    titulo=f"Altura a 1 pie (promedio Izq/Der) por {eje.lower()}",
+                    ylabel="Altura (cm)", xlabel=eje, unidad="cm"),
+                    use_container_width=True)
+            _tabla_stats(analysis_stats.stats_unipodal(df_cmj, grupo, "altura_l", "altura_r"),
+                         grupo, decimales=1)
+
+            st.markdown("##### Asimetrías")
+            st.caption("Asimetría negativa = registro mayor con la pierna izquierda; "
+                       "positiva = pierna derecha.")
+            serie_as = analysis_stats.series_asimetria(df_cmj, grupo,
+                                                       izq_key="altura_l", der_key="altura_r")
+            if serie_as:
+                serie_as = {config.division_categoria(k) if grupo == "cat" else k: v
+                            for k, v in serie_as.items()}
+                st.plotly_chart(charts_stats.boxplot(
+                    serie_as, titulo=f"Distribución de asimetrías por {eje.lower()}",
+                    ylabel="Asimetría (%)", xlabel=eje, unidad="%"),
+                    use_container_width=True)
+
+            st.markdown("##### Pie dominante en el salto")
+            pdom_cmj = analysis_stats.distribucion_pie_dom(df_cmj, grupo, pie_col="pie_dom_cmj",
+                                                           izq_key="altura_l", der_key="altura_r")
+            if not pdom_cmj.empty:
+                st.plotly_chart(charts_stats.barras_apiladas_pct(
+                    _relabel(pdom_cmj, grupo), titulo="Distribución de pie dominante (CMJ)"),
+                    use_container_width=True)
+
+    # ---------- TAB 5: Nórdico a 1 pie ----------
+    with t5:
+        if "fza_izq" not in dn.columns or "fza_der" not in dn.columns:
+            st.info("La base de nórdico no tiene fuerza Izq/Der.")
+        else:
+            grupo, eje = _selector_grupo("est_nor_g")
+            if grupo == "anio_nac" and "anio_nac" not in dn.columns:
+                st.info("El nórdico no tiene año de nacimiento; mostrá por categoría.")
+            else:
+                prom = analysis_stats.promedios_unipodal(dn, grupo, "fza_izq", "fza_der")
+                if not prom.empty:
+                    st.plotly_chart(charts_stats.barras_izq_der(
+                        _relabel(prom, grupo),
+                        titulo=f"Fuerza máx a 1 pie (promedio Izq/Der) por {eje.lower()}",
+                        ylabel="Fuerza (N)", xlabel=eje, unidad="N"),
+                        use_container_width=True)
+                _tabla_stats(analysis_stats.stats_unipodal(dn, grupo, "fza_izq", "fza_der"),
+                             grupo, decimales=0)
+
+                st.markdown("##### Asimetrías de fuerza")
+                serie_as = analysis_stats.series_asimetria(dn, grupo,
+                                                           izq_key="fza_izq", der_key="fza_der")
+                if serie_as:
+                    serie_as = {config.division_categoria(k) if grupo == "cat" else k: v
+                                for k, v in serie_as.items()}
+                    st.plotly_chart(charts_stats.boxplot(
+                        serie_as, titulo=f"Distribución de asimetrías por {eje.lower()}",
+                        ylabel="Asimetría (%)", xlabel=eje, unidad="%"),
+                        use_container_width=True)
+
+                st.markdown("##### Pie dominante (nórdico)")
+                pdom = analysis_stats.distribucion_pie_dom(dn, grupo,
+                                                           izq_key="fza_izq", der_key="fza_der")
+                if not pdom.empty:
+                    st.plotly_chart(charts_stats.barras_apiladas_pct(
+                        _relabel(pdom, grupo), titulo="Distribución de pie dominante (nórdico)"),
+                        use_container_width=True)
+
+    # ---------- TAB 6: Comparador individual ----------
+    with t6:
+        st.markdown("#### Asimetrías de un jugador por test")
+        # Restringir jugadores por permiso
+        dfc = df_cmj if acceso_total else df_cmj[df_cmj["cat"].isin(cats_perm)] \
+            if "cat" in df_cmj.columns else df_cmj
+        jugadores = analysis_stats.ordenar_grupos(
+            analysis.opciones_disponibles(dfc, "jugador"), "jugador") \
+            if "jugador" in dfc.columns else []
+        if not jugadores:
+            st.info("No hay jugadores disponibles.")
+        else:
+            jug = st.selectbox("Jugador", jugadores, key="est_comp_jug")
+            info = dfc[dfc["jugador"] == jug]
+            cat_j = info["cat"].iloc[0] if "cat" in info.columns and not info.empty else "—"
+            anac = info["anio_nac"].iloc[0] if "anio_nac" in info.columns and not info.empty else "—"
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Categoría", config.etiqueta_categoria(cat_j))
+            c2.metric("Año de nacimiento", str(anac))
+            if "pie_dom_cmj" in info.columns and not info.empty:
+                modo = info["pie_dom_cmj"].mode()
+                c3.metric("Pie dominante (CMJ)", modo.iloc[0] if not modo.empty else "—")
+
+            # CMJ a 1 pie por test
+            g = analysis_stats.datos_jugador_por_test(
+                dfc, jug, ["altura_l", "altura_r", "altura_asym"])
+            if not g.empty and "altura_l" in g.columns:
+                st.plotly_chart(charts_stats.comparador_barras_linea(
+                    g["test_id"], g.get("altura_l"), g.get("altura_r"),
+                    g.get("altura_asym", pd.Series([np.nan] * len(g))),
+                    ["Altura Izq", "Altura Der"],
+                    titulo="Alturas de salto a 1 pie por test",
+                    ylabel="cm", linea_label="Asimetría %"),
+                    use_container_width=True)
+
+            # Nórdico a 1 pie por test
+            gn = analysis_stats.datos_jugador_por_test(dn, jug, ["fza_izq", "fza_der"])
+            if not gn.empty and "fza_izq" in gn.columns:
+                gn["_imb"] = analysis_stats.asim_firmada(gn["fza_izq"], gn["fza_der"]).abs()
+                st.plotly_chart(charts_stats.comparador_barras_linea(
+                    gn["test_id"], gn["fza_izq"], gn["fza_der"], gn["_imb"],
+                    ["Fza Izq", "Fza Der"],
+                    titulo="Fuerza máxima (nórdico) a 1 pie por test",
+                    ylabel="N", linea_label="Imbalance %"),
+                    use_container_width=True)
+
+
+# ----------------------------------------------------------------------------
 # APP PRINCIPAL (post-login)
 # ----------------------------------------------------------------------------
 def app_principal():
@@ -562,7 +790,8 @@ def app_principal():
         st.markdown("---")
 
         seccion = st.radio("Navegación",
-                           ["📊 Resumen General", "🔬 Análisis por Categoría"],
+                           ["📊 Resumen General", "🔬 Análisis por Categoría",
+                            "📈 Análisis Estadísticos"],
                            key="nav")
         st.markdown("---")
 
@@ -610,6 +839,18 @@ def app_principal():
     if seccion.startswith("📊"):
         # Resumen General: referencia para TODOS, con todas las categorías.
         seccion_resumen(df_cmj_full, df_nordico_full, config.CATEGORIAS)
+    elif seccion.startswith("📈"):
+        # Análisis Estadísticos: vistas agregadas (referencia) + comparador restringido.
+        with st.spinner("Cargando datos estadísticos..."):
+            df_estad, err_est = data_loader.cargar_cmj_full()
+        if err_est:
+            st.error("⚠️ " + err_est)
+        if df_estad.empty:
+            st.warning("No se pudieron cargar los datos completos de CMJ. "
+                       "Verificá la URL de la planilla en config.py (URL_CMJ_FULL).")
+        else:
+            seccion_estadisticos(df_estad, df_nordico_full, cats_perm,
+                                 bool(user.get("acceso_total")))
     else:
         # Análisis por Categoría: datos detallados, restringidos por permiso.
         dcj = df_cmj_full[df_cmj_full["cat"].isin(cats_sel)] if "cat" in df_cmj_full.columns else df_cmj_full
