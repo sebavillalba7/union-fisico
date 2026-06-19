@@ -28,6 +28,18 @@ GRIS_CLARO = "#F3F4F6"
 URL_CMJ = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0w8CiSwcdg9Fe6cPxka8Y86YQfqqHFcEQiR9F4Ls6_DgU3LvvGrEUgCZTwkUkbw0oj4EANyzB7MpP/pub?gid=589925252&single=true&output=csv"
 URL_NORDICO = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0w8CiSwcdg9Fe6cPxka8Y86YQfqqHFcEQiR9F4Ls6_DgU3LvvGrEUgCZTwkUkbw0oj4EANyzB7MpP/pub?gid=853002356&single=true&output=csv"
 
+# Planilla COMPLETA de CMJ (export crudo de ForceDecks): incluye las columnas
+# a 1 pie (L/R), asimetrías y pie dominante. Es la fuente del tablero estadístico.
+URL_CMJ_FULL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ0w8CiSwcdg9Fe6cPxka8Y86YQfqqHFcEQiR9F4Ls6_DgU3LvvGrEUgCZTwkUkbw0oj4EANyzB7MpP/pub?gid=1351515444&single=true&output=csv"
+
+# Métricas a 1 pie del CMJ (las que usa el informe de Looker).
+CMJ_UNIPODAL = [
+    {"key": "altura_l", "col": ["Jump Height (Imp-Mom) [cm] (L)"], "label": "Altura Izq (cm)", "decimals": 1},
+    {"key": "altura_r", "col": ["Jump Height (Imp-Mom) [cm] (R)"], "label": "Altura Der (cm)", "decimals": 1},
+    {"key": "altura_asym", "col": ["Jump Height (Imp-Mom) [cm] (Asym)(%)"], "label": "Asimetría Altura (%)", "decimals": 1},
+]
+CMJ_UNIPODAL_LADO_COL = ["Jump Height (Imp-Mom) [cm] (Asym)(%)-LADO"]
+
 # ----------------------------------------------------------------------------
 # MÉTRICAS
 # Cada métrica tiene:
@@ -138,7 +150,21 @@ ANIO_NAC_CATEGORIA = {
 CAT_ALIASES = {
     "2005": "3a", "3ª": "3a", "3RA": "3a", "3RA.": "3a",
     "TERCERA": "3a", "3RA DIVISION": "3a", "3RA DIVISIÓN": "3a", "3": "3a",
+    # Códigos de división del informe (3A..10A) -> categoría interna
+    "3A": "3a", "4A": "2006", "5A": "2007", "6A": "2008",
+    "7A": "2009", "8A": "2010", "9A": "2011", "10A": "2012",
 }
+
+# Categoría interna -> código de división (como en el informe Looker)
+DIVISION_CATEGORIA = {
+    "3a": "3A", "2006": "4A", "2007": "5A", "2008": "6A",
+    "2009": "7A", "2010": "8A", "2011": "9A", "2012": "10A",
+}
+
+
+def division_categoria(cat):
+    """Devuelve el código de división (3A..10A) de una categoría interna."""
+    return DIVISION_CATEGORIA.get(str(cat).strip(), str(cat).strip())
 
 
 def etiqueta_categoria(cat):
