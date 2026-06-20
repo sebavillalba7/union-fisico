@@ -24,16 +24,23 @@ def _col_jugador(df):
 
 
 def ordenar_grupos(valores, grupo_col):
-    """Ordena los valores de un grupo según el orden canónico conocido."""
-    valores = [v for v in valores if str(v) not in ("", "nan", "None")]
+    """Ordena los valores de un grupo según el orden canónico conocido.
+    Para año de nacimiento, descarta años fuera del rango plausible."""
+    valores = [v for v in valores if str(v) not in ("", "nan", "None", "<NA>")]
     if grupo_col == "cat":
-        base = ORDEN_CAT
-    elif grupo_col == "anio_nac":
-        base = ORDEN_ANIO_NAC
-    else:
-        return sorted(valores, key=lambda x: str(x))
-    orden = {v: i for i, v in enumerate(base)}
-    return sorted(valores, key=lambda x: orden.get(str(x), 999))
+        orden = {v: i for i, v in enumerate(ORDEN_CAT)}
+        return sorted(valores, key=lambda x: orden.get(str(x), 999))
+    if grupo_col == "anio_nac":
+        validos = []
+        for v in valores:
+            try:
+                y = int(float(str(v)))
+            except (ValueError, TypeError):
+                continue
+            if config.ANIO_NAC_MIN <= y <= config.ANIO_NAC_MAX:
+                validos.append(str(y))
+        return sorted(set(validos), key=lambda x: int(x))
+    return sorted(valores, key=lambda x: str(x))
 
 
 # ----------------------------------------------------------------------------
