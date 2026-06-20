@@ -40,6 +40,11 @@ CMJ_UNIPODAL = [
 ]
 CMJ_UNIPODAL_LADO_COL = ["Jump Height (Imp-Mom) [cm] (Asym)(%)-LADO"]
 
+# Rango plausible de año de nacimiento para juveniles. Valores fuera de esto
+# (p. ej. 2001 o 2025 por una fecha mal cargada) se descartan del análisis.
+ANIO_NAC_MIN = 2003
+ANIO_NAC_MAX = 2015
+
 # ----------------------------------------------------------------------------
 # MÉTRICAS
 # Cada métrica tiene:
